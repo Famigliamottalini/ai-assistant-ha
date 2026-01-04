@@ -1,0 +1,87 @@
+# Script per interagire con AI Assistant
+
+script:
+  # Script base per fare una domanda
+  ai_ask:
+    alias: "Chiedi all'AI Assistant"
+    description: "Fai una domanda all'AI Assistant"
+    fields:
+      question:
+        description: "La domanda da fare"
+        example: "Qual è la temperatura?"
+    sequence:
+      - service: ai_assistant.ask_question
+        data:
+          question: "{{ question }}"
+      - wait_template: "{{ states('sensor.ai_assistant_last_response') != 'Ready' }}"
+      - service: system_log.write
+        data:
+          message: "AI Question: {{ question }} | Response: {{ states('sensor.ai_assistant_last_response') }}"
+
+  # Script per analisi completa della casa
+  ai_analyze_home:
+    alias: "Analisi Casa con AI"
+    description: "Chiede all'AI di analizzare lo stato completo della casa"
+    sequence:
+      - service: ai_assistant.ask_question
+        data:
+          question: >
+            Analizza lo stato completo della casa:
+            
+            **Temperatura e Clima:**
+            - Temperatura soggiorno: {{ states('sensor.temperatura_soggiorno') }}°C
+            - Umidità: {{ states('sensor.umidita_soggiorno') }}%
+            
+            **Illuminazione:**
+            - Luci accese: {{ states.light | selectattr('state', 'eq', 'on') | list | count }}
+            - Luci spente: {{ states.light | selectattr('state', 'eq', 'off') | list | count }}
+            
+            **Dispositivi:**
+            - Online: {{ states | selectattr('state', 'ne', 'unavailable') | list | count }}
+            - Offline: {{ states | selectattr('state', 'eq', 'unavailable') | list | count }}
+            
+            Fornisci un riepilogo dettagliato e suggerimenti per ottimizzare.
+
+  # Script per suggerimenti energetici
+  ai_energy_tips:
+    alias: "Suggerimenti Energia"
+    description: "Chiede suggerimenti per risparmiare energia"
+    sequence:
+      - service: ai_assistant.ask_question
+        data:
+          question: >
+            Analizza il consumo energetico:
+            - Dispositivi accesi: {{ states | selectattr('state', 'eq', 'on') | list | count }}
+            - Luci accese: {{ states.light | selectattr('state', 'eq', 'on') | list | count }}
+            
+            Fornisci suggerimenti pratici per risparmiare energia oggi.
+
+  # Script per notificare risposta AI
+  ai_notify_response:
+    alias: "Notifica Risposta AI"
+    description: "Invia una notifica con la risposta dell'AI"
+    sequence:
+      - wait_template: "{{ states('sensor.ai_assistant_last_response') != 'Ready' }}"
+      - delay: "00:00:01"
+      - choose:
+          - conditions:
+              - condition: state
+                entity_id: input_boolean.notifiche_ai
+                state: "on"
+            sequence:
+              - service: notify.mobile_app
+                data:
+                  title: "🤖 AI Assistant"
+                  message: "{{ states('sensor.ai_assistant_last_response') }}"
+
+  # Script per reset conversazione
+  ai_reset:
+    alias: "Reset AI Assistant"
+    description: "Resetta il contatore delle conversazioni"
+    sequence:
+      - service: ai_assistant.reset
+      - service: notify.persistent_notification
+        data:
+          title: "AI Assistant"
+          message: "Contatore conversazioni resettato"
+
